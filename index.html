@@ -36,10 +36,10 @@
 <div id="ui">Inventory: Dirt</div>
 <div id="crosshair"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/PointerLockControls.js"></script>
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+import { PointerLockControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/PointerLockControls.js";
 
-<script>
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
 
@@ -54,14 +54,13 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// FIX: attach controls safely
-const controls = new THREE.PointerLockControls(camera, document.body);
+// controls (FIXED for GitHub)
+const controls = new PointerLockControls(camera, document.body);
 scene.add(controls.getObject());
 
-document.addEventListener("click", () => {
-  controls.lock();
-});
+document.addEventListener("click", () => controls.lock());
 
+// lighting
 scene.add(new THREE.HemisphereLight(0xffffff, 0x444444));
 
 // blocks
@@ -78,7 +77,7 @@ function addBlock(x, y, z, color = 0x8B5A2B) {
   blocks.push(mesh);
 }
 
-// world generation
+// world
 for (let x = -10; x < 10; x++) {
   for (let z = -10; z < 10; z++) {
     addBlock(x, -1, z);
@@ -90,15 +89,15 @@ const keys = {};
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
 document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-// inventory toggle
+// inventory
 document.addEventListener("keydown", e => {
   if (e.key.toLowerCase() === "e") {
     const ui = document.getElementById("ui");
-    ui.style.display = (ui.style.display === "none") ? "block" : "none";
+    ui.style.display = ui.style.display === "none" ? "block" : "none";
   }
 });
 
-// raycasting
+// raycast
 const raycaster = new THREE.Raycaster();
 
 function getHit() {
@@ -106,7 +105,7 @@ function getHit() {
   return raycaster.intersectObjects(blocks)[0];
 }
 
-// block break/place
+// place / break
 document.addEventListener("mousedown", e => {
   const hit = getHit();
   if (!hit) return;
@@ -124,6 +123,7 @@ document.addEventListener("mousedown", e => {
 
 document.addEventListener("contextmenu", e => e.preventDefault());
 
+// start pos
 camera.position.set(0, 2, 5);
 
 // loop
