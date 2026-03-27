@@ -14,8 +14,8 @@
     padding: 10px;
     background: rgba(0,0,0,0.5);
     color: white;
-    font-family: sans-serif;
     display: none;
+    font-family: sans-serif;
   }
 
   #crosshair {
@@ -37,7 +37,6 @@
 <div id="crosshair"></div>
 
 <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-<script src="https://unpkg.com/three@0.160.0/examples/js/controls/PointerLockControls.js"></script>
 
 <script>
 const scene = new THREE.Scene();
@@ -45,26 +44,31 @@ scene.background = new THREE.Color(0x87ceeb);
 
 const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
-
-// controls
-const controls = new THREE.PointerLockControls(camera, document.body);
-scene.add(controls.getObject());
-
-document.addEventListener("click", () => controls.lock());
 
 // lighting
 scene.add(new THREE.HemisphereLight(0xffffff, 0x444444));
 
-// blocks
+// ===== PLAYER =====
+let player = {
+  x: 0,
+  y: 2,
+  z: 5,
+  velocityY: 0,
+  onGround: false,
+  yaw: 0,
+  pitch: 0
+};
+
+// ===== BLOCKS =====
 let blocks = [];
 
-function addBlock(x, y, z) {
+function addBlock(x,y,z){
   const cube = new THREE.Mesh(
     new THREE.BoxGeometry(1,1,1),
-    new THREE.MeshLambertMaterial({ color: 0x8B5A2B })
+    new THREE.MeshLambertMaterial({color:0x8B5A2B})
   );
   cube.position.set(x,y,z);
   scene.add(cube);
@@ -72,103 +76,142 @@ function addBlock(x, y, z) {
 }
 
 // world
-for (let x=-10;x<10;x++){
-  for (let z=-10;z<10;z++){
+for(let x=-10;x<10;x++){
+  for(let z=-10;z<10;z++){
     addBlock(x,-1,z);
   }
 }
 
-// movement
+// ===== INPUT =====
 let keys = {};
-document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+document.addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true);
+document.addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
 
 // inventory
-document.addEventListener("keydown", e => {
-  if (e.key.toLowerCase() === "e") {
-    let ui = document.getElementById("ui");
-    ui.style.display = ui.style.display === "none" ? "block" : "none";
+document.addEventListener("keydown",e=>{
+  if(e.key.toLowerCase()==="e"){
+    let ui=document.getElementById("ui");
+    ui.style.display = ui.style.display==="none"?"block":"none";
   }
 });
 
-// physics
-let velocityY = 0;
-let gravity = -0.01;
-let onGround = false;
+// ===== MOUSE LOOK (NO POINTERLOCK FILE) =====
+let locked = false;
 
-// raycast
+document.addEventListener("click",()=>{
+  document.body.requestPointerLock();
+});
+
+document.addEventListener("pointerlockchange",()=>{
+  locked = document.pointerLockElement === document.body;
+});
+
+document.addEventListener("mousemove",e=>{
+  if(!locked) return;
+
+  player.yaw -= e.movementX * 0.002;
+  player.pitch -= e.movementY * 0.002;
+
+  player.pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, player.pitch));
+});
+
+// ===== RAYCAST =====
 const raycaster = new THREE.Raycaster();
 
-function getHit() {
-  const center = new THREE.Vector2(0,0);
-  raycaster.setFromCamera(center, camera);
+function getHit(){
+  const dir = new THREE.Vector3(
+    Math.sin(player.yaw)*Math.cos(player.pitch),
+    Math.sin(player.pitch),
+    Math.cos(player.yaw)*Math.cos(player.pitch)
+  );
+
+  raycaster.set(
+    new THREE.Vector3(player.x, player.y, player.z),
+    dir
+  );
+
   return raycaster.intersectObjects(blocks)[0];
 }
 
-// place / break
-document.addEventListener("mousedown", e => {
-  const hit = getHit();
-  if (!hit) return;
+// break/place
+document.addEventListener("mousedown",e=>{
+  let hit = getHit();
+  if(!hit) return;
 
-  if (e.button === 0) {
+  if(e.button===0){
     scene.remove(hit.object);
-    blocks = blocks.filter(b => b !== hit.object);
+    blocks = blocks.filter(b=>b!==hit.object);
   }
 
-  if (e.button === 2) {
-    const pos = hit.object.position.clone().add(hit.face.normal);
-    pos.x = Math.round(pos.x);
-    pos.y = Math.round(pos.y);
-    pos.z = Math.round(pos.z);
-    addBlock(pos.x, pos.y, pos.z);
+  if(e.button===2){
+    let p = hit.object.position.clone().add(hit.face.normal);
+    p.x=Math.round(p.x);
+    p.y=Math.round(p.y);
+    p.z=Math.round(p.z);
+    addBlock(p.x,p.y,p.z);
   }
 });
 
-document.addEventListener("contextmenu", e => e.preventDefault());
+document.addEventListener("contextmenu",e=>e.preventDefault());
 
-// start position
-camera.position.set(0,2,5);
-
-// loop
-function animate() {
-  requestAnimationFrame(animate);
+// ===== GAME LOOP =====
+function update(){
 
   let speed = keys["shift"] ? 0.15 : 0.08;
 
-  if (controls.isLocked) {
-    if (keys["w"]) controls.moveForward(speed);
-    if (keys["s"]) controls.moveForward(-speed);
-    if (keys["a"]) controls.moveRight(-speed);
-    if (keys["d"]) controls.moveRight(speed);
+  let forward = new THREE.Vector3(
+    Math.sin(player.yaw),
+    0,
+    Math.cos(player.yaw)
+  );
 
-    // jump
-    if (keys[" "] && onGround) {
-      velocityY = 0.2;
-      onGround = false;
-    }
+  let right = new THREE.Vector3(
+    Math.sin(player.yaw - Math.PI/2),
+    0,
+    Math.cos(player.yaw - Math.PI/2)
+  );
 
-    // gravity
-    velocityY += gravity;
-    camera.position.y += velocityY;
+  if(keys["w"]) { player.x += forward.x*speed; player.z += forward.z*speed; }
+  if(keys["s"]) { player.x -= forward.x*speed; player.z -= forward.z*speed; }
+  if(keys["a"]) { player.x += right.x*speed; player.z += right.z*speed; }
+  if(keys["d"]) { player.x -= right.x*speed; player.z -= right.z*speed; }
 
-    // ground collision
-    if (camera.position.y < 2) {
-      camera.position.y = 2;
-      velocityY = 0;
-      onGround = true;
-    }
+  // jump
+  if(keys[" "] && player.onGround){
+    player.velocityY = 0.2;
+    player.onGround = false;
   }
 
-  renderer.render(scene, camera);
+  // gravity
+  player.velocityY -= 0.01;
+  player.y += player.velocityY;
+
+  if(player.y < 2){
+    player.y = 2;
+    player.velocityY = 0;
+    player.onGround = true;
+  }
+
+  // camera rotation
+  camera.rotation.order = "YXZ";
+  camera.rotation.y = player.yaw;
+  camera.rotation.x = player.pitch;
+
+  camera.position.set(player.x, player.y, player.z);
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  update();
+  renderer.render(scene,camera);
 }
 
 animate();
 
-// resize
-window.addEventListener("resize", () => {
+window.addEventListener("resize",()=>{
   camera.aspect = innerWidth/innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
+  renderer.setSize(innerWidth,innerHeight);
 });
 </script>
 
