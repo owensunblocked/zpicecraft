@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ZpiceCraft</title>
+<style>
+  body { margin: 0; overflow: hidden; }
+  canvas { display: block; }
+
+  #ui {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    padding: 10px;
+    background: rgba(0,0,0,0.5);
+    color: white;
+    font-family: sans-serif;
+    display: none;
+  }
+
+  #crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 8px;
+    height: 8px;
+    margin-left: -4px;
+    margin-top: -4px;
+    background: white;
+    border-radius: 50%;
+  }
+</style>
+</head>
+<body>
+
+<div id="ui">Inventory: Dirt</div>
+<div id="crosshair"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/PointerLockControls.js"></script>
+
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+
+const camera = new THREE.PerspectiveCamera(
+  75,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
+);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// FIX: attach controls safely
+const controls = new THREE.PointerLockControls(camera, document.body);
+scene.add(controls.getObject());
+
+document.addEventListener("click", () => {
+  controls.lock();
+});
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x444444));
+
+// blocks
+let blocks = [];
+
+function addBlock(x, y, z, color = 0x8B5A2B) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshLambertMaterial({ color })
+  );
+
+  mesh.position.set(x, y, z);
+  scene.add(mesh);
+  blocks.push(mesh);
+}
+
+// world generation
+for (let x = -10; x < 10; x++) {
+  for (let z = -10; z < 10; z++) {
+    addBlock(x, -1, z);
+  }
+}
+
+// movement
+const keys = {};
+document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+// inventory toggle
+document.addEventListener("keydown", e => {
+  if (e.key.toLowerCase() === "e") {
+    const ui = document.getElementById("ui");
+    ui.style.display = (ui.style.display === "none") ? "block" : "none";
+  }
+});
+
+// raycasting
+const raycaster = new THREE.Raycaster();
+
+function getHit() {
+  raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+  return raycaster.intersectObjects(blocks)[0];
+}
+
+// block break/place
+document.addEventListener("mousedown", e => {
+  const hit = getHit();
+  if (!hit) return;
+
+  if (e.button === 0) {
+    scene.remove(hit.object);
+    blocks = blocks.filter(b => b !== hit.object);
+  }
+
+  if (e.button === 2) {
+    const pos = hit.object.position.clone().add(hit.face.normal);
+    addBlock(pos.x, pos.y, pos.z);
+  }
+});
+
+document.addEventListener("contextmenu", e => e.preventDefault());
+
+camera.position.set(0, 2, 5);
+
+// loop
+function animate() {
+  requestAnimationFrame(animate);
+
+  const speed = keys["shift"] ? 0.15 : 0.08;
+
+  if (controls.isLocked) {
+    if (keys["w"]) controls.moveForward(speed);
+    if (keys["s"]) controls.moveForward(-speed);
+    if (keys["a"]) controls.moveRight(-speed);
+    if (keys["d"]) controls.moveRight(speed);
+  }
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// resize
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+
+</body>
+</html>
